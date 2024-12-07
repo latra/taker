@@ -31,18 +31,22 @@ export function VideoUpload({ onVideoUpload, videoUrl, onVideoRef, onCreateTakeA
   const [isFloating, setIsFloating] = useState(false);
   const mainVideoRef = useRef<HTMLVideoElement>(null);
 
-  // Pass the ref to parent component
+  // Ensure video ref is set when video loads
   useEffect(() => {
-    if (onVideoRef) {
-      onVideoRef(mainVideoRef.current);
+    if (mainVideoRef.current) {
+      onVideoRef?.(mainVideoRef.current);
     }
-  }, [onVideoRef]);
+  }, [mainVideoRef.current, onVideoRef]);
 
-  const handleCreateTake = () => {
-    if (!mainVideoRef.current) return;
+  const handleCreateTake = useCallback(() => {
+    if (!mainVideoRef.current) {
+      console.warn('Video ref is null in handleCreateTake');
+      return;
+    }
     const currentTime = formatVideoTime(mainVideoRef.current.currentTime);
+    console.log('VideoUpload: Creating take at time:', currentTime);
     onCreateTakeAtCurrentTime?.(currentTime);
-  };
+  }, [onCreateTakeAtCurrentTime]);
 
   if (videoUrl) {
     return (
@@ -55,6 +59,7 @@ export function VideoUpload({ onVideoUpload, videoUrl, onVideoRef, onCreateTakeA
                 className="w-full rounded-lg shadow-lg h-auto"
                 src={videoUrl}
                 ref={mainVideoRef}
+                onLoadedMetadata={() => onVideoRef?.(mainVideoRef.current)}
               >
                 Your browser does not support the video tag.
               </video>
@@ -87,7 +92,11 @@ export function VideoUpload({ onVideoUpload, videoUrl, onVideoRef, onCreateTakeA
             <FloatingVideo
               videoUrl={videoUrl}
               mainVideoRef={mainVideoRef.current}
-              onClose={() => setIsFloating(false)}
+              onClose={() => {
+                setIsFloating(false);
+                // Ensure video ref is updated when returning from floating mode
+                onVideoRef?.(mainVideoRef.current);
+              }}
               onCreateTakeAtCurrentTime={onCreateTakeAtCurrentTime}
             />
           )}

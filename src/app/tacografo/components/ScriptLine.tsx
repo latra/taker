@@ -209,6 +209,13 @@ export function ScriptLineComponent({
       data-line-id={line.id}
     >
       <div className="flex flex-col gap-1">
+      <LineTimer
+          timer={line.timer}
+          onUpdate={onTimerUpdate}
+          onRemove={onTimerRemove}
+          onAdd={onTimerAdd}
+          videoRef={videoRef || null}
+        />
         <div className="flex gap-4 py-0.5">
           {validationErrors.length > 0 && (
             <ValidationErrorIndicator errors={validationErrors.map(e => e.message)} />
@@ -277,7 +284,11 @@ export function ScriptLineComponent({
           {canDelete && (
             <div className="flex items-center">
               <button
-                onClick={() => onDelete('char')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  console.log('Delete button clicked');
+                  onDelete('char');
+                }}
                 className="opacity-0 hover:opacity-100 transition-opacity text-red-500 hover:text-red-700 px-2"
                 title="Remove line"
               >
@@ -287,13 +298,6 @@ export function ScriptLineComponent({
           )}
         </div>
 
-        <LineTimer
-          timer={line.timer}
-          onUpdate={onTimerUpdate}
-          onRemove={onTimerRemove}
-          onAdd={onTimerAdd}
-          videoRef={videoRef || null}
-        />
       </div>
 
       {!isLastLine && (

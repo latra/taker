@@ -20,8 +20,8 @@ export function LineTimer({ timer, onUpdate, onRemove, onAdd, videoRef }: LineTi
           value={timer}
           onChange={(e) => onUpdate(formatTimeInput(e.target.value))}
           placeholder="00:00"
-          maxLength={5}
-          className="border rounded px-2 py-1 w-16 text-center font-mono text-sm"
+          maxLength={6}
+          className="border rounded px-2 py-1 w-20 text-center font-mono text-sm"
         />
         <SeekButton time={timer} videoRef={videoRef} />
         <button

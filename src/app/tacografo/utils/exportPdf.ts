@@ -29,7 +29,7 @@ export function exportPdf(takes: Take[]) {
 
     // Take timer
     if (take.timer) {
-      doc.setFont('CascadiaCode', 'normal');
+      doc.setFont('CascadiaCode', 'light');
       doc.setFontSize(12);
       doc.text(take.timer, 20, y);
       y += 8;
@@ -45,7 +45,11 @@ export function exportPdf(takes: Take[]) {
         doc.addPage();
         y = 20;
       }
-
+      // Line timer
+      if (line.timer) {
+        doc.text(line.timer, 20, y);
+        y += 6; // Line spacing
+      }
       // Character name
       doc.setFont('CascadiaCode', 'bold');
       doc.setFontSize(12);
@@ -55,10 +59,7 @@ export function exportPdf(takes: Take[]) {
       doc.setFont('CascadiaCode', 'normal');
       doc.text(line.dialogue, 60, y); // Double tab (40 points) from character name
 
-      // Line timer
-      if (line.timer) {
-        doc.text(line.timer, 180, y);
-      }
+
 
       y += 8; // Line spacing
     });

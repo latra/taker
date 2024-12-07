@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Rnd } from 'react-rnd';
 import { formatVideoTime } from '../utils/time';
 
@@ -41,11 +41,20 @@ export function FloatingVideo({ videoUrl, mainVideoRef, onClose, onCreateTakeAtC
     };
   }, [mainVideoRef]);
 
-  const handleCreateTake = () => {
-    if (!mainVideoRef) return;
-    const currentTime = formatVideoTime(mainVideoRef.currentTime);
+  // Add debug logging
+  useEffect(() => {
+    console.log('mainVideoRef in FloatingVideo:', mainVideoRef);
+  }, [mainVideoRef]);
+
+  const handleCreateTake = useCallback(() => {
+    if (!floatingVideoRef.current) {
+      console.warn('Video ref is null in FloatingVideo handleCreateTake');
+      return;
+    }
+    const currentTime = formatVideoTime(floatingVideoRef.current.currentTime);
+    console.log('FloatingVideo: Creating take at time:', currentTime);
     onCreateTakeAtCurrentTime?.(currentTime);
-  };
+  }, [onCreateTakeAtCurrentTime]);
 
   return (
     <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 9999 }}>

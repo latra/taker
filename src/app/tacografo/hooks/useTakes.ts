@@ -10,6 +10,43 @@ export function useTakes() {
   
   const { formatTimeInput } = useTimeFormat();
 
+  const timeToSeconds = (timeStr: string): number => {
+    if (!timeStr.trim()) return Infinity;
+    const [minutes, seconds] = timeStr.split(':').map(Number);
+    return (minutes || 0) * 60 + (seconds || 0);
+  };
+
+  const reorderTakesByTime = useCallback(() => {
+    setTakes(prev => {
+      // Sort takes by time
+      const sortedTakes = [...prev].sort((a, b) => 
+        timeToSeconds(a.timer) - timeToSeconds(b.timer)
+      );
+
+      // Update linked list connections
+      return sortedTakes.map((take, index) => ({
+        ...take,
+        prev: index > 0 ? sortedTakes[index - 1].id : null,
+        next: index < sortedTakes.length - 1 ? sortedTakes[index + 1].id : null
+      }));
+    });
+  }, []);
+
+  const updateTakeTimer = useCallback((takeId: number, value: string) => {
+    setTakes(prev => 
+      prev.map(take => 
+        take.id === takeId 
+          ? { ...take, timer: formatTimeInput(value) }
+          : take
+      )
+    );
+  }, [formatTimeInput]);
+
+  // Add a new function for handling timer blur
+  const handleTimerBlur = useCallback((takeId: number) => {
+    reorderTakesByTime();
+  }, [reorderTakesByTime]);
+
   // Memoize utility functions
   const getNextLineId = useCallback(() => {
     const allLineIds = takes.flatMap(t => t.lines.map(l => l.id));
@@ -66,16 +103,15 @@ export function useTakes() {
   const removeTake = useCallback((takeId: number) => {
     if (takes.length <= 1) return;
     
-    setTakes(prev => prev.filter(take => take.id !== takeId));
+    setTakes(prev => {
+      const updatedTakes = prev.filter(t => t.id !== takeId);
+      return updatedTakes.map((take, index) => ({
+        ...take,
+        prev: index > 0 ? updatedTakes[index - 1].id : null,
+        next: index < updatedTakes.length - 1 ? updatedTakes[index + 1].id : null
+      }));
+    });
   }, [takes.length]);
-
-  const updateTakeTimer = (takeId: number, value: string) => {
-    setTakes(takes.map(take => 
-      take.id === takeId 
-        ? { ...take, timer: formatTimeInput(value) }
-        : take
-    ));
-  };
 
   const updateTakeName = (takeId: number, name: string) => {
     setTakes(takes.map(take => 
@@ -96,16 +132,36 @@ export function useTakes() {
     }));
   };
 
-  const removeLine = (takeId: number, lineId: number) => {
-    setTakes(takes.map(take => {
-      if (take.id !== takeId) return take;
-      if (take.lines.length <= 1) return take;
-      return {
-        ...take,
-        lines: take.lines.filter(line => line.id !== lineId)
-      };
-    }));
-  };
+  const removeLine = useCallback((takeId: number, lineId: number) => {
+    console.log('removeLine', takeId, lineId);
+    setTakes(prev => {
+      const take = prev.find(t => t.id === takeId);
+      if (!take) return prev;
+
+      // If this is the last line, remove the entire take
+      if (take.lines.length <= 1) {
+        // Skip if this is the only take
+        if (prev.length <= 1) return prev;
+
+        // Remove the take and update linked list connections
+        const updatedTakes = prev.filter(t => t.id !== takeId);
+        return updatedTakes.map((take, index) => ({
+          ...take,
+          prev: index > 0 ? updatedTakes[index - 1].id : null,
+          next: index < updatedTakes.length - 1 ? updatedTakes[index + 1].id : null
+        }));
+      }
+
+      // Otherwise, just remove the line
+      return prev.map(take => {
+        if (take.id !== takeId) return take;
+        return {
+          ...take,
+          lines: take.lines.filter(line => line.id !== lineId)
+        };
+      });
+    });
+  }, []);
 
   const updateLine = (
     takeId: number, 
@@ -298,27 +354,56 @@ export function useTakes() {
   // };
 
   const createTakeWithTimer = useCallback((timer: string) => {
+    console.log('Creating take with timer:', timer);
     const newTakeId = getNextTakeId();
     const newLineId = getNextLineId();
     
-    setTakes(prev => [...prev, {
-      id: newTakeId,
-      name: `Take ${newTakeId}`,
-      timer,
-      lines: [createEmptyLine(newLineId)],
-      prev: prev[prev.length - 1]?.id || null,
-      next: null
-    }]);
+    // Use '00:00' as default if timer is empty
+    const finalTimer = timer.trim() || '00:00';
+    
+    setTakes(prev => {
+      const newTake: Take = {
+        id: newTakeId,
+        name: `Take ${newTakeId}`,
+        timer: finalTimer,
+        lines: [createEmptyLine(newLineId)],
+        prev: null,
+        next: null
+      };
+
+      // Convert time to seconds for comparison
+      const newTakeSeconds = timeToSeconds(finalTimer);
+      const sortedTakes = [...prev];
+      
+      // Find the correct position to insert the new take
+      let insertIndex = sortedTakes.findIndex(take => 
+        timeToSeconds(take.timer) > newTakeSeconds
+      );
+      
+      // If no position found (all times are smaller), append to end
+      if (insertIndex === -1) {
+        insertIndex = sortedTakes.length;
+      }
+
+      // Insert the take at the correct position
+      sortedTakes.splice(insertIndex, 0, newTake);
+
+      // Update linked list connections
+      return sortedTakes.map((take, index) => ({
+        ...take,
+        prev: index > 0 ? sortedTakes[index - 1].id : null,
+        next: index < sortedTakes.length - 1 ? sortedTakes[index + 1].id : null
+      }));
+    });
 
     // Schedule focus for next render
     setTimeout(() => {
-      const refKey = `${newTakeId}-${newLineId}`;
       const charInput = document.querySelector(`[data-take-id="${newTakeId}"] input[type="text"]`);
       if (charInput instanceof HTMLInputElement) {
         charInput.focus();
       }
     }, 0);
-  }, [getNextTakeId, getNextLineId, createEmptyLine]);
+  }, [getNextTakeId, getNextLineId, createEmptyLine, timeToSeconds]);
 
   return {
     takes,
@@ -339,5 +424,6 @@ export function useTakes() {
     splitTakeAtLine,
     // mergeTakes,
     createTakeWithTimer,
+    handleTimerBlur,
   };
 } 

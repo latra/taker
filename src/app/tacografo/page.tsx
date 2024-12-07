@@ -48,6 +48,7 @@ export default function Tacografo() {
     mergeCharacters,
     splitTakeAtLine,
     createTakeWithTimer,
+    handleTimerBlur,
   } = useTakes();
   
   const { updateCharacters, getCharactersList } = useCharacters();
@@ -158,20 +159,8 @@ export default function Tacografo() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [addNewTake, takes.length, focusedTakeId, takes, splitTakeAtLine]);
 
-  // Function to update focused take
-  const handleTakeFocus = (takeId: number) => {
-    setFocusedTakeId(takeId);
-  };
-
-  // Function to clear focused take
-  const handleTakeBlur = () => {
-    // Use a small delay to allow for other focus events
-    setTimeout(() => {
-      setFocusedTakeId(null);
-    }, 100);
-  };
-
   const handleLineDelete = (takeId: number, lineId: number, focusField: 'char' | 'dial') => {
+    console.log('handleLineDelete called', { takeId, lineId, focusField });  // Add debug log
     const takeIndex = takes.findIndex(t => t.id === takeId);
     const lineIndex = takes[takeIndex].lines.findIndex(l => l.id === lineId);
     
@@ -402,6 +391,11 @@ export default function Tacografo() {
     }, 0);
   }, [takes, selectedCharacters, updateCharacters]);
 
+  const handleVideoRef = useCallback((ref: HTMLVideoElement | null) => {
+    console.log('Setting video ref:', ref);
+    setVideoRef(ref);
+  }, []);
+
   return (
     <main className="flex min-h-screen flex-col items-center p-8">
       <div className="w-full max-w-7xl">
@@ -452,8 +446,11 @@ export default function Tacografo() {
           <VideoUpload
             onVideoUpload={handleVideoUpload}
             videoUrl={videoUrl}
-            onVideoRef={setVideoRef}
-            onCreateTakeAtCurrentTime={createTakeWithTimer}
+            onVideoRef={handleVideoRef}
+            onCreateTakeAtCurrentTime={(time: string) => {
+              console.log('Creating take with time:', time);
+              createTakeWithTimer(time);
+            }}
           />
         </ClientOnly>
 
@@ -479,9 +476,23 @@ export default function Tacografo() {
           onDragOver={handleDragOver}
           onDragCancel={() => setDragOverTakeId(null)}
         >
-          {takes
-            .filter(filterTakesByCharacters)
-            .map((take) => {
+          {(() => {
+            // Start with the first take that has prev = null
+            const headTake = takes.find(take => take.prev === null);
+            if (!headTake) return null;
+
+            const orderedTakes: Take[] = [];
+            let currentTake: Take | undefined = headTake;
+
+            // Build ordered array following 'next' references
+            while (currentTake) {
+              if (filterTakesByCharacters(currentTake)) {
+                orderedTakes.push(currentTake);
+              }
+              currentTake = takes.find(take => take.id === currentTake?.next);
+            }
+
+            return orderedTakes.map((take) => {
               const validationErrors = validateTake(take, config);
               const hasTakeErrors = validationErrors.some(
                 error => error.type === 'take' || error.type === 'character'
@@ -528,9 +539,10 @@ export default function Tacografo() {
                         type="text"
                         value={take.timer}
                         onChange={(e) => updateTakeTimer(take.id, e.target.value)}
+                        onBlur={() => handleTimerBlur(take.id)}
                         placeholder="00:00"
-                        maxLength={5}
-                        className="border rounded px-2 py-1 w-20 text-center font-mono"
+                        maxLength={6}
+                        className="border rounded px-2 py-1 w-24 text-center font-mono"
                       />
                       {videoRef && <SeekButton time={take.timer} videoRef={videoRef} />}
                     </div>
@@ -554,15 +566,9 @@ export default function Tacografo() {
                               lineIndex={lineIndex}
                               take={take}
                               isLastLine={lineIndex === take.lines.length - 1}
-                              canDelete={take.lines.length > 1}
+                              canDelete={true}
                               onUpdate={(field: "character" | "dialogue" | "originalDialogue", value: string) => updateLine(take.id, line.id, field, value)}
-                              onDelete={(focusField: "char" | "dial") => 
-                                handleLineDelete(
-                                  take.id, 
-                                  line.id, 
-                                  focusField
-                                )
-                              }
+                              onDelete={(focusField: "char" | "dial") => handleLineDelete(take.id, line.id, focusField)}
                               onTimerAdd={() => addLineTimer(take.id, line.id)}
                               onTimerUpdate={(value: string) => updateLineTimer(take.id, line.id, value)}
                               onTimerRemove={() => removeLineTimer(take.id, line.id)}
@@ -594,7 +600,8 @@ export default function Tacografo() {
                   </div>
                 </div>
               );
-            })}
+            });
+          })()}
         </DndContext>
 
         <button
